@@ -1,0 +1,91 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ebook Master Maker Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8fafc;
+      }
+      .font-serif { font-family: 'Merriweather', serif; }
+      .font-mono { font-family: 'Roboto Mono', monospace; }
+      
+      .editor-section:hover .section-actions {
+        opacity: 1;
+      }
+      
+      .prose ul {
+        list-style-type: disc;
+        padding-left: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      
+      /* Image helper classes - High specificity with !important */
+      img.img-small { width: 30% !important; height: auto !important; max-width: 30% !important; }
+      img.img-medium { width: 60% !important; height: auto !important; max-width: 60% !important; }
+      img.img-large { width: 100% !important; height: auto !important; max-width: 100% !important; }
+      
+      img.img-left { float: left !important; margin: 1rem 1.5rem 1rem 0 !important; display: inline-block !important; }
+      img.img-right { float: right !important; margin: 1rem 0 1rem 1.5rem !important; display: inline-block !important; }
+      img.img-center { display: block !important; margin: 2rem auto !important; float: none !important; clear: both !important; }
+      
+      .editor-content img {
+        cursor: pointer;
+        /* Hapus border hover lama agar tidak bentrok dengan overlay baru */
+      }
+      
+      /* RESIZE HANDLES */
+      .resize-overlay {
+        position: absolute;
+        pointer-events: none; /* Agar klik tembus ke elemen bawahnya jika perlu */
+        border: 2px solid #6366f1;
+        z-index: 40;
+      }
+      
+      .resize-handle {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background-color: white;
+        border: 2px solid #6366f1;
+        pointer-events: auto; /* Handle harus bisa diklik */
+        z-index: 50;
+      }
+      
+      .handle-nw { top: -6px; left: -6px; cursor: nw-resize; }
+      .handle-ne { top: -6px; right: -6px; cursor: ne-resize; }
+      .handle-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+      .handle-se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      @media print {
+        .no-print { display: none; }
+        .resize-overlay, .resize-handle { display: none !important; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.574.0",
+    "jspdf": "https://esm.sh/jspdf@^4.1.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
