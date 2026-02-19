@@ -1,7 +1,0 @@
-{
-  "name": "Ebook Master Maker Pro",
-  "description": "Aplikasi pembuatan ebook profesional bertenaga AI Gemini, memungkinkan pengguna untuk membuat, mengedit, dan mengekspor ebook terstruktur dari ide sederhana.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
