@@ -367,139 +367,224 @@ const App: React.FC = () => {
     ) => {
       const div = document.createElement('div');
       div.innerHTML = html;
+
+      interface StyleState {
+        bold: boolean;
+        italic: boolean;
+        underline: boolean;
+      }
+
+      interface TextAtom {
+        type: 'text';
+        text: string;
+        width: number;
+        style: StyleState;
+        isSpace: boolean;
+      }
+
+      interface ImageAtom {
+        type: 'image';
+        el: HTMLImageElement;
+      }
+
+      interface BreakAtom {
+        type: 'break' | 'block_break';
+      }
+
+      type Atom = TextAtom | ImageAtom | BreakAtom;
+
+      const atoms: Atom[] = [];
       
-      const flattenNodes = (node: Node, result: {type: 'text'|'image'|'block_break', content: any}[]) => {
+      // Helper to measure text
+      const measureText = (text: string, style: StyleState) => {
+        const s = style.bold ? (style.italic ? 'bolditalic' : 'bold') : (style.italic ? 'italic' : 'normal');
+        doc.setFont('helvetica', s);
+        doc.setFontSize(fontSize);
+        return doc.getTextWidth(text);
+      };
+
+      const flattenNodes = (node: Node, currentStyle: StyleState) => {
         if (node.nodeType === Node.TEXT_NODE) {
-          const t = node.textContent?.replace(/\n/g, ' ');
-          if (t && t.trim()) result.push({type: 'text', content: t});
+          const text = node.textContent || '';
+          // Split by whitespace but keep delimiters
+          const parts = text.split(/(\s+)/);
+          parts.forEach(part => {
+             if (!part) return;
+             if (/^\s+$/.test(part)) {
+                // Normalize whitespace to single space
+                atoms.push({ 
+                    type: 'text', 
+                    text: ' ', 
+                    width: measureText(' ', currentStyle), 
+                    style: {...currentStyle},
+                    isSpace: true
+                });
+             } else {
+                atoms.push({ 
+                    type: 'text', 
+                    text: part, 
+                    width: measureText(part, currentStyle), 
+                    style: {...currentStyle},
+                    isSpace: false
+                });
+             }
+          });
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (el.tagName === 'IMG') {
-            result.push({type: 'image', content: el});
-          } else if (['P', 'DIV', 'H1', 'H2', 'H3', 'LI'].includes(el.tagName)) {
-             // Rekursif untuk konten di dalam blok
-            el.childNodes.forEach(child => flattenNodes(child, result));
-            // Tandai akhir blok untuk flush buffer
-            result.push({type: 'block_break', content: null});
-          } else if (el.tagName === 'BR') {
-            result.push({type: 'text', content: '\n'});
-          } else {
-            el.childNodes.forEach(child => flattenNodes(child, result));
+          const tag = el.tagName;
+          const newStyle = { ...currentStyle };
+          
+          if (tag === 'B' || tag === 'STRONG') newStyle.bold = true;
+          if (tag === 'I' || tag === 'EM') newStyle.italic = true;
+          if (tag === 'U') newStyle.underline = true;
+          
+          if (tag === 'IMG') {
+            atoms.push({ type: 'image', el: el as HTMLImageElement });
+            return;
+          }
+          
+          if (tag === 'BR') {
+            atoms.push({ type: 'break' });
+            return;
+          }
+          
+          el.childNodes.forEach(child => flattenNodes(child, newStyle));
+
+          if (['P', 'DIV', 'H1', 'H2', 'H3', 'LI'].includes(tag)) {
+            atoms.push({ type: 'block_break' });
           }
         }
       };
 
-      const nodes: {type: 'text'|'image'|'block_break', content: any}[] = [];
-      flattenNodes(div, nodes);
-
-      let buffer = "";
-      
-      const flushBuffer = () => {
-        if (!buffer.trim()) {
-           buffer = ""; 
-           return;
-        }
-
-        // --- KONFIGURASI TAMPILAN MS WORD ---
-        // 1 pt = 0.352778 mm
-        doc.setFontSize(fontSize);
-        doc.setFont('helvetica', fontStyle); 
-        
-        // Manual Calculation for Line Height
-        // 1.15 line spacing is standard
-        // Penting: Set lineHeightFactor pada objek doc agar text() menggunakan spacing yang benar saat render array
-        doc.setLineHeightFactor(1.15); 
-        
-        const lineHeightFactor = 1.15;
-        const lineHeight = fontSize * lineHeightFactor * 0.352778; 
-        
-        // Paragraph Spacing (Space After)
-        // 10 pt requested. 10 * 0.352778 mm/pt = ~3.53 mm
-        const paragraphSpacing = 10 * 0.352778; 
-
-        const lines = doc.splitTextToSize(buffer.trim(), contentWidth);
-        
-        // --- LOGIKA UTAMA PERBAIKAN ALIGNMENT ---
-        // Kita tidak boleh loop forEach satu per satu jika ingin 'justify' berfungsi.
-        // Kita harus kirim ARRAY baris (chunk) ke doc.text.
-        
-        let cursor = 0;
-        
-        while (cursor < lines.length) {
-            const spaceLeft = pageHeight - margin - y;
-            // Hitung berapa baris yang muat di sisa halaman
-            let maxLines = Math.floor(spaceLeft / lineHeight);
-            
-            if (maxLines <= 0) {
-                doc.addPage();
-                y = margin;
-                continue;
-            }
-
-            // Ambil potongan baris yang muat
-            const chunk = lines.slice(cursor, cursor + maxLines);
-            
-            let x = margin;
-            if (align === 'center') x = pageWidth / 2;
-            if (align === 'right') x = pageWidth - margin;
-
-            // RENDER CHUNK SEKALIGUS
-            // Dengan mengirim array 'chunk', jsPDF memperlakukannya sebagai blok teks
-            // sehingga 'align: justify' akan bekerja pada baris-baris di dalamnya.
-            doc.text(chunk, x, y, { 
-                align: align, 
-                maxWidth: contentWidth,
-                baseline: 'top'
-            });
-            
-            // Update posisi Y
-            y += chunk.length * lineHeight;
-            cursor += chunk.length;
-            
-            // Jika masih ada sisa teks tapi halaman penuh -> Halaman baru
-            if (cursor < lines.length) {
-                doc.addPage();
-                y = margin;
-            }
-        }
-        
-        // Tambahkan spasi antar paragraf setelah blok selesai
-        y += paragraphSpacing;
-        buffer = "";
+      const initialStyle: StyleState = {
+        bold: fontStyle === 'bold',
+        italic: false,
+        underline: false
       };
 
-      nodes.forEach(node => {
-        if (node.type === 'text') {
-            buffer += node.content;
-        } else if (node.type === 'block_break') {
-            flushBuffer();
-        } else if (node.type === 'image') {
-          flushBuffer();
-          const img = node.content as HTMLImageElement;
-          if (img.src && img.src.startsWith('data:image')) {
-            try {
-              const props = doc.getImageProperties(img.src);
-              const ratio = props.width / props.height;
-              
-              let w = contentWidth * 0.6; 
-              if (img.classList.contains('img-small')) w = contentWidth * 0.3;
-              if (img.classList.contains('img-large')) w = contentWidth;
-              let h = w / ratio;
-              
-              let x = margin + (contentWidth - w) / 2;
-              if (img.classList.contains('img-left')) x = margin;
-              if (img.classList.contains('img-right')) x = margin + (contentWidth - w);
-              
-              checkPageBreak(h + 5);
-              doc.addImage(img.src, props.fileType || 'JPEG', x, y, w, h);
-              y += h + 5;
-            } catch(e) {
-              console.error("Image render error", e);
+      flattenNodes(div, initialStyle);
+
+      // Layout constants
+      const lineHeight = fontSize * 1.15 * 0.352778; // mm
+      const paragraphSpacing = 3.53; // mm
+
+      let currentLine: TextAtom[] = [];
+      let currentLineWidth = 0;
+
+      const renderLine = (line: TextAtom[], isJustify: boolean) => {
+         if (line.length === 0) return;
+         
+         // Trim trailing space
+         if (line.length > 0 && line[line.length - 1].isSpace) {
+             const removed = line.pop();
+             if (removed) currentLineWidth -= removed.width;
+         }
+         if (line.length === 0) return;
+
+         if (checkPageBreak(lineHeight)) {
+            // y updated
+         }
+
+         let x = margin;
+         let extraSpace = 0;
+         
+         if (align === 'center') {
+            x = margin + (contentWidth - currentLineWidth) / 2;
+         } else if (align === 'right') {
+            x = margin + (contentWidth - currentLineWidth);
+         } else if (isJustify) {
+            const spaceCount = line.filter(a => a.isSpace).length;
+            if (spaceCount > 0) {
+                extraSpace = (contentWidth - currentLineWidth) / spaceCount;
             }
-          }
-        }
-      });
-      flushBuffer();
+         }
+
+         line.forEach((atom) => {
+             if (atom.isSpace) {
+                 x += atom.width + extraSpace;
+                 return;
+             }
+
+             const s = atom.style.bold ? (atom.style.italic ? 'bolditalic' : 'bold') : (atom.style.italic ? 'italic' : 'normal');
+             doc.setFont('helvetica', s);
+             doc.setFontSize(fontSize);
+             
+             doc.text(atom.text, x, y, { baseline: 'top' });
+             
+             if (atom.style.underline) {
+                 doc.setLineWidth(0.1);
+                 // Underline offset approx 1.1 * fontSize (descent)
+                 const offset = fontSize * 0.352778 * 1.05; 
+                 doc.line(x, y + offset, x + atom.width, y + offset);
+             }
+             
+             x += atom.width;
+         });
+         
+         y += lineHeight;
+      };
+
+      for (let i = 0; i < atoms.length; i++) {
+         const atom = atoms[i];
+         
+         if (atom.type === 'text') {
+            // If space at start of line, ignore? Usually yes.
+            if (currentLine.length === 0 && atom.isSpace) continue;
+
+            if (currentLineWidth + atom.width > contentWidth) {
+               // Render current line
+               renderLine(currentLine, align === 'justify');
+               currentLine = [];
+               currentLineWidth = 0;
+               
+               // If atom is space, ignore it (it was the break point)
+               if (atom.isSpace) continue;
+               
+               currentLine.push(atom);
+               currentLineWidth += atom.width;
+            } else {
+               currentLine.push(atom);
+               currentLineWidth += atom.width;
+            }
+         } else if (atom.type === 'break' || atom.type === 'block_break') {
+            renderLine(currentLine, false); // No justify on forced break
+            currentLine = [];
+            currentLineWidth = 0;
+            
+            if (atom.type === 'block_break') {
+               y += paragraphSpacing;
+            }
+         } else if (atom.type === 'image') {
+            renderLine(currentLine, false);
+            currentLine = [];
+            currentLineWidth = 0;
+            
+            const img = atom.el;
+            if (img.src && img.src.startsWith('data:image')) {
+                try {
+                  const props = doc.getImageProperties(img.src);
+                  const ratio = props.width / props.height;
+                  
+                  let w = contentWidth * 0.6; 
+                  if (img.classList.contains('img-small')) w = contentWidth * 0.3;
+                  if (img.classList.contains('img-large')) w = contentWidth;
+                  let h = w / ratio;
+                  
+                  let xImg = margin + (contentWidth - w) / 2;
+                  if (img.classList.contains('img-left')) xImg = margin;
+                  if (img.classList.contains('img-right')) xImg = margin + (contentWidth - w);
+                  
+                  checkPageBreak(h + 5);
+                  doc.addImage(img.src, props.fileType || 'JPEG', xImg, y, w, h);
+                  y += h + 5;
+                } catch(e) {
+                  console.error("Image render error", e);
+                }
+            }
+         }
+      }
+      // Flush remaining
+      renderLine(currentLine, false);
     };
 
     if (state.title) {
@@ -531,6 +616,16 @@ const App: React.FC = () => {
       y += 5;
       addContent(state.conclusion, 12, 'normal', state.conclusionFormatting.align);
     }
+    // Tambahkan Nomor Halaman
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      // Posisi di bawah tengah
+      doc.text(`${i}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+
     const titleFilename = state.title.replace(/<[^>]*>/g, '').trim() || 'ebook';
     doc.save(`${titleFilename}.pdf`);
   };
