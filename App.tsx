@@ -80,12 +80,16 @@ const App: React.FC = () => {
 
   const handleError = (error: any) => {
     console.error("API Error:", error);
-    if (error?.message?.includes('503') || error?.message?.includes('demand')) {
+    const errorMessage = error?.message || "";
+    
+    if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota')) {
+      alert(`Anda sedang menggunakan API Key Gratis Dari Gemini\n\nJadinya harus memberikan jeda untuk generate (minimal 60 detik)\n\nNamun jika masih terjadi, anda bisa membuat API Key Baru di Google AI Studio\n\nPastikan API Key anda buat di project yang baru (bukan di project yang anda buat sebelumnya)\n\nBisa Klik disini —> https://aistudio.google.com/ \n\nSolusi pasti tidak akan ada notif seperti ini lagi tanpa membuat api key baru, adalah menggunakan API Key berbayar (berbayar langsung ke google)\n\nBisa menghubungi WA CS kami untuk panduan upgrade API Key berbayar\n\nSekali lagi API key gratis yang anda buat masih bisa dipakai, hanya saja harus memberikan jeda, kalau API Key berbayar tidak perlu jeda\n\nTerima Kasih`);
+    } else if (errorMessage.includes('503') || errorMessage.includes('demand')) {
       alert("Maaf, server AI sedang sibuk karena permintaan yang tinggi. Silakan coba lagi dalam beberapa saat.");
-    } else if (error?.message?.includes('API_KEY_INVALID')) {
+    } else if (errorMessage.includes('API_KEY_INVALID')) {
       alert("Kunci API tidak valid. Harap periksa kembali pengaturan Anda.");
     } else {
-      alert("Terjadi kesalahan saat menghubungi AI: " + (error.message || "Unknown error"));
+      alert("Terjadi kesalahan saat menghubungi AI: " + (errorMessage || "Unknown error"));
     }
   };
 
